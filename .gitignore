@@ -1,0 +1,8 @@
+# Emacs files
+*~
+
+# Object files
+*.o 
+
+# Game Executable
+FallingSand

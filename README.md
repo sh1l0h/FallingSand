@@ -15,10 +15,12 @@ To build and run the game, follow these steps:
 
 1. Clone this repository: `git clone https://github.com/sh1l0h/FallingSand.git`
 2. Install the dependencies mentioned above.
-3. Navigate to [src](./src/) directory in the cloned repository: `cd FallingSand/src`
-4. Build the game using the Makefile: `make`
-5. Navigate to the parent directory: `cd ..`
-6. Run the game: `./FallingSand`
+3. Navigate to the cloned repository: `cd FallingSand`
+4. Create a build directory: `mkdir build`
+5. Navigate to the build directory: `cd build`
+6. Generate the build files using CMake: `cmake ..`
+4. Build the game: `make`
+6. Run the game: `./bin/FallingSand`
 
 ## License
 

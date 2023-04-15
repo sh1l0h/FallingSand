@@ -1,8 +1,5 @@
 # Emacs files
 *~
 
-# Object files
-*.o 
-
-# Game Executable
-FallingSand
+# Build artifacts
+build/

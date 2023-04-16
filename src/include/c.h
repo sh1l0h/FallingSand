@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+#define MIN(a, b) (a > b ? b : a)
+#define MAX(a, b) (a > b ? a : b)
+
+#define CLAMP(a, min, max) (MAX(min, MIN(max, a))) 
+
 typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;

@@ -1,54 +1,147 @@
-#include "include/chunk.h"
-#include <stdlib.h>
-#include <assert.h>
-#include <string.h>
+#include "../include/chunk.h"
+#include "../include/world.h"
 
-Chunk *chunk_create()
+Chunk *chunk_create(const Vec2i *position)
 {
-	Chunk *result = malloc(sizeof(Chunk));
+	Chunk *result = malloc(sizeof *result);
+    zinc_vec2i_copy(position, &result->position);
 	result->should_be_updated = 0;
-	result->min_update_zone = (Vec2i) {{CHUNK_DIM, CHUNK_DIM}};
-	result->max_update_zone = (Vec2i) {{-1, -1}};
-	memset(result->cells, 0, CHUNK_DIM*CHUNK_DIM*sizeof(Cell));
+	result->min_update = (Vec2i) {{CHUNK_DIM, CHUNK_DIM}};
+	result->max_update = (Vec2i) {{-1, -1}};
+	memset(result->cells, 0, CHUNK_DIM * CHUNK_DIM * sizeof *result->cells);
 
 	return result;
 }
 
-Cell chunk_delete_cell(Chunk *chunk, i32 x, i32 y)
+Cell *chunk_get_cell(Chunk *chunk, const Vec2i *cell_pos)
 {
-#ifdef DEBUG
-	assert(x >= 0 && x < CHUNK_DIM && y >= 0 && y < CHUNK_DIM && "Out of bounds in chunk_delete_cell");
-#endif
-
-	Cell result = chunk_get_cell(chunk, x, y);
-
-	chunk_set_cell(chunk, x, y, empty);
-	return result;
+	return chunk->cells + cell_pos->y * CHUNK_DIM + cell_pos->x;
 }
 
-inline Cell chunk_get_cell(Chunk *chunk, i32 x, i32 y)
+void chunk_set_cell(Chunk *chunk, const Vec2i *cell_pos, const Cell *cell)
 {
-#ifdef DEBUG
-	assert(x >= 0 && x < CHUNK_DIM && y >= 0 && y < CHUNK_DIM && "Out of bounds in chunk_get_cell");
-#endif
+	if (cell_pos->x < chunk->min_update.x + UPDATE_ZONE_OFFSET)
+		chunk->min_update.x = MAX(0, cell_pos->x - UPDATE_ZONE_OFFSET);
 
-	return chunk->cells[y*CHUNK_DIM + x];
+    if (cell_pos->x > chunk->max_update.x - UPDATE_ZONE_OFFSET) {
+        chunk->max_update.x = MIN(CHUNK_DIM - 1, 
+                                  cell_pos->x + UPDATE_ZONE_OFFSET);
+    }
+
+    if (cell_pos->y < chunk->min_update.y + UPDATE_ZONE_OFFSET)
+        chunk->min_update.y = MAX(0, cell_pos->y - UPDATE_ZONE_OFFSET);
+
+    if (cell_pos->y > chunk->max_update.y - UPDATE_ZONE_OFFSET) {
+        chunk->max_update.y = MIN(CHUNK_DIM - 1,
+                                  cell_pos->y + UPDATE_ZONE_OFFSET);
+    }
+
+    cell_copy(cell, chunk->cells + cell_pos->x + cell_pos->y * CHUNK_DIM);
 }
 
-void chunk_set_cell(Chunk *chunk, i32 x, i32 y, Cell cell)
+void chunk_collect_moves(Chunk *chunk)
 {
-#ifdef DEBUG
-	assert(x >= 0 && x < CHUNK_DIM && y >= 0 && y < CHUNK_DIM && "Out of bounds in chunk_set_cell");
-#endif
+    Vec2i global_chunk_pos;
+    zinc_vec2i_scale(&chunk->position, CHUNK_DIM, &global_chunk_pos);
 
-	if(x < chunk->min_update_zone.x + UPDATE_ZONE_OFFSET)
-		chunk->min_update_zone.x = x - UPDATE_ZONE_OFFSET <= 0 ? 0 : x - UPDATE_ZONE_OFFSET;
-	if(x > chunk->max_update_zone.x - UPDATE_ZONE_OFFSET)
-		chunk->max_update_zone.x = x + UPDATE_ZONE_OFFSET >= CHUNK_DIM ? CHUNK_DIM - 1 : x + UPDATE_ZONE_OFFSET;
-	if(y < chunk->min_update_zone.y + UPDATE_ZONE_OFFSET)
-		chunk->min_update_zone.y = y - UPDATE_ZONE_OFFSET <= 0 ? 0 : y - UPDATE_ZONE_OFFSET;
-	if(y > chunk->max_update_zone.y - UPDATE_ZONE_OFFSET)
-		chunk->max_update_zone.y = y + UPDATE_ZONE_OFFSET >= CHUNK_DIM ? CHUNK_DIM - 1 : y + UPDATE_ZONE_OFFSET;
+    if (!chunk->should_be_updated)
+        return; 
 
-	chunk->cells[x + y*CHUNK_DIM] = cell;
+    u32 move_count = 0;
+    for (i32 y = chunk->min_update.y; y <= chunk->max_update.y; y++) {
+        for (i32 x = chunk->min_update.x; 
+             x <= chunk->max_update.x; x++) {
+            const Vec2i cell_pos = {{x, y}};
+
+            Cell *curr_cell = chunk_get_cell(chunk, &cell_pos); 
+            if (IS_EMPTY(curr_cell))
+                continue;
+
+            Vec2i global_cell_pos;
+            zinc_vec2i_add(&global_chunk_pos, &cell_pos, &global_cell_pos);            
+
+            Vec2i cell_down_pos = {{0, 1}};
+            zinc_vec2i_add(&global_cell_pos, &cell_down_pos, &cell_down_pos);
+
+            if (MOVES_DOWN(curr_cell) && world_in_bounds(&cell_down_pos) && 
+                IS_EMPTY(world_get_cell(&cell_down_pos))) {
+                ml_add(world.ml, &global_cell_pos, &cell_down_pos, curr_cell);
+                move_count += 1;
+                continue;
+            }
+
+            Vec2i cell_up_pos = {{0, -1}};
+            zinc_vec2i_add(&global_cell_pos, &cell_up_pos, &cell_up_pos);
+
+            if (MOVES_UP(curr_cell) && world_in_bounds(&cell_up_pos) && 
+                IS_EMPTY(world_get_cell(&cell_up_pos))) {
+                ml_add(world.ml, &global_cell_pos, &cell_up_pos, curr_cell);
+                move_count += 1;
+                continue;
+            }
+
+            i32 random = rand() % 2;
+            const Vec2i order[] = {
+                {{random == 1 ? 1 : -1, 0}},
+                {{random == 0 ? 1 : -1, 0}}
+            };
+
+            if (MOVES_DOWN_SIDES(curr_cell)) {
+                for (i32 i = 0; i < 2; i++) {
+                    Vec2i down_side_pos;
+                    zinc_vec2i_add(order + i, &cell_down_pos, &down_side_pos);
+
+                    if (!world_in_bounds(&down_side_pos) ||
+                        !IS_EMPTY(world_get_cell(&down_side_pos))) 
+                        continue;
+
+                    ml_add(world.ml, 
+                           &global_cell_pos, 
+                           &down_side_pos, 
+                           curr_cell);
+                    move_count += 1;
+                    goto next_cell;
+                }
+            }
+
+            if (MOVES_SIDES(curr_cell)) {
+                for (i32 i = 0; i < 2; i++) {
+                    Vec2i side_pos;
+                    zinc_vec2i_add(order + i, &global_cell_pos, &side_pos);
+
+                    if (!world_in_bounds(&side_pos) ||
+                        !IS_EMPTY(world_get_cell(&side_pos))) 
+                        continue;
+
+                    ml_add(world.ml, &global_cell_pos, &side_pos, curr_cell);
+                    move_count += 1;
+                    goto next_cell;
+                }
+            }
+
+            if (MOVES_UP_SIDES(curr_cell)) {
+                for (i32 i = 0; i < 2; i++) {
+                    Vec2i up_side_pos;
+                    zinc_vec2i_add(order + i, &cell_up_pos, &up_side_pos);
+
+                    if (!world_in_bounds(&up_side_pos) ||
+                        !IS_EMPTY(world_get_cell(&up_side_pos))) 
+                        continue;
+
+                    ml_add(world.ml, 
+                           &global_cell_pos, 
+                           &up_side_pos, 
+                           curr_cell);
+                    move_count += 1;
+                    break;
+                }
+            }
+
+next_cell:;
+        }
+    }
+
+    chunk->should_be_updated = move_count > 0;
+    chunk->min_update = (Vec2i) {{CHUNK_DIM, CHUNK_DIM}};
+    chunk->max_update = (Vec2i) {{-1, -1}};
 }

@@ -1,0 +1,3 @@
+[submodule "libs/ZINC"]
+	path = libs/ZINC
+	url = https://github.com/sh1l0h/ZINC

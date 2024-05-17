@@ -22,7 +22,8 @@ Chunk *world_get_chunk_by_cell(const Vec2i *cell_pos);
 void world_delete_cell(const Vec2i *cell_pos);
 Cell *world_get_cell(const Vec2i *cell_pos);
 void world_set_cell(const Vec2i *cell_pos, const Cell *cell);
-bool world_in_bounds(const Vec2i *cell_pos);
+bool world_in_bounds(const Vec2i *pos);
+bool world_cell_in_bounds(const Vec2i *cell_pos);
 
 void world_update();
 void world_render(u32 *pixels);

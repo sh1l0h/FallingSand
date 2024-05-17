@@ -12,9 +12,9 @@ SDL_PixelFormat *format = NULL;
 
 void clean()
 {
-	if(renderer) 
+	if (renderer) 
         SDL_DestroyRenderer(renderer);
-	if(window) 
+	if (window) 
         SDL_DestroyWindow(window);
 
 	SDL_Quit();
@@ -97,7 +97,7 @@ int main()
                         for (int i = MAX(mouse_x - 10, 0); 
                              i < MIN(mouse_x + 10, WINDOW_WIDTH);
                              i++) {
-                            const Vec2i cell_pos = {{i, j}};
+                            const Vec2i cell_pos = ZINC_VEC2I_INIT(i, j);
 							world_get_chunk_by_cell(&cell_pos)->should_be_updated = 1;
 							world_set_cell(&cell_pos, &(Cell) {ID_SAND, 0.0f});
 						}
@@ -108,7 +108,7 @@ int main()
 			}
 		}
 
-		printf("delta = %fms\n", delta / 1000.0f);
+		printf("fps = %dms\n", delta);
 		while (time_to_process >= ms_per_update) {
 			// Fixed update
 			world_update(ms_per_update);

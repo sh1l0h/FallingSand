@@ -1,51 +1,74 @@
 #include "../include/world.h"
+#include "../include/camera.h"
 #include <SDL2/SDL.h>
 
-World world;
+World world = { 
+    .buckets = {NULL},
+    .loaded_chunks = 0
+};
 
 extern SDL_PixelFormat *format;
 extern SDL_Renderer *renderer;
 
-void world_create(i32 width, i32 height)
+void world_add_chunk(const Vec2i *chunk_pos)
 {
-	world.width = width;
-	world.height = height;
-	world.chunks = malloc(width * height * sizeof *world.chunks);
-	world.ml = ml_create();
-
-    for (i32 y = 0; y < height; y++) {
-        for (i32 x = 0; x < width; x++) {
-            Vec2i chunk_pos = ZINC_VEC2I_INIT(x, y);
-			world.chunks[y * width + x] = chunk_create(&chunk_pos);
-        }
-	}
+    u64 index = vec2i_hash(chunk_pos) & (CHUNK_BUCKETS_SIZE - 1);
+    Chunk *curr = world.buckets[index];
+    Chunk *new = chunk_create(chunk_pos);
+    new->next = curr;
+    world.buckets[index] = new;
 }
 
 inline Chunk *world_get_chunk(const Vec2i *chunk_pos)
 {
-	return world.chunks[chunk_pos->y * world.width + chunk_pos->x];
+    u64 index = vec2i_hash(chunk_pos) & (CHUNK_BUCKETS_SIZE - 1);
+
+    Chunk *curr = world.buckets[index];
+    while (curr != NULL) {
+        if (curr->position.x == chunk_pos->x && 
+            curr->position.y == chunk_pos->y)
+            return curr;
+
+        curr = curr->next;
+    }
+
+	return NULL;
+}
+
+inline void world_cell_to_chunk_pos(const Vec2i *cell_pos, Vec2i *chunk_pos)
+{
+    chunk_pos->x = cell_pos->x < 0 ? 
+        (cell_pos->x - CHUNK_DIM + 1) / CHUNK_DIM : cell_pos->x / CHUNK_DIM;
+    chunk_pos->y = cell_pos->y < 0 ? 
+        (cell_pos->y - CHUNK_DIM + 1) / CHUNK_DIM : cell_pos->y / CHUNK_DIM;
 }
 
 inline Chunk *world_get_chunk_by_cell(const Vec2i *cell_pos)
 {
-    const Vec2i chunk_pos = ZINC_VEC2I_INIT(cell_pos->x / CHUNK_DIM, 
-                                            cell_pos->y / CHUNK_DIM);
+    Vec2i chunk_pos;
+    world_cell_to_chunk_pos(cell_pos, &chunk_pos);
 	
 	return world_get_chunk(&chunk_pos);
 }
 
-inline void world_delete_cell(const Vec2i *cell_pos)
+inline bool world_delete_cell(const Vec2i *cell_pos)
 {
-    Cell cell = {ID_EMPTY, 0.0f};
-    world_set_cell(cell_pos, &cell); 
+    Cell cell = {.id = ID_EMPTY};
+    return world_set_cell(cell_pos, &cell); 
 }
 
 inline Cell *world_get_cell(const Vec2i *cell_pos)
 {
-    const Vec2i cell_pos_in_chunk = ZINC_VEC2I_INIT(cell_pos->x % CHUNK_DIM,
-                                                    cell_pos->y % CHUNK_DIM);
-	return chunk_get_cell(world_get_chunk_by_cell(cell_pos), 
-                          &cell_pos_in_chunk);
+    const Vec2i cell_pos_in_chunk = 
+        ZINC_VEC2I_INIT(MOD(cell_pos->x, CHUNK_DIM),
+                        MOD(cell_pos->y, CHUNK_DIM));
+
+    Chunk *chunk = world_get_chunk_by_cell(cell_pos); 
+
+    if (chunk == NULL)
+        return NULL;
+
+    return chunk_get_cell(chunk, &cell_pos_in_chunk);
 }
 
 static void world_update_neighboring_chunk(const Vec2i *chunk_pos, 
@@ -54,10 +77,11 @@ static void world_update_neighboring_chunk(const Vec2i *chunk_pos,
 {
     Vec2i neighbor_pos;
     zinc_vec2i_add(offset, chunk_pos, &neighbor_pos);
-    if (!world_in_bounds(&neighbor_pos)) 
-        return;
 
     Chunk *c = world_get_chunk(&neighbor_pos);
+    if (c == NULL)
+        return;
+
     const Vec2i update_pos = 
         ZINC_VEC2I_INIT(cell_pos->x + (-offset->x) * CHUNK_DIM,
                         cell_pos->y + (-offset->y) * CHUNK_DIM);
@@ -65,13 +89,20 @@ static void world_update_neighboring_chunk(const Vec2i *chunk_pos,
     chunk_update_zone(c, &update_pos);
 }
 
-void world_set_cell(const Vec2i *cell_pos, const Cell *cell)
+bool world_set_cell(const Vec2i *cell_pos, const Cell *cell)
 {
-    const Vec2i cell_pos_in_chunk = ZINC_VEC2I_INIT(cell_pos->x % CHUNK_DIM,
-                                                    cell_pos->y % CHUNK_DIM);
+    const Vec2i cell_pos_in_chunk = 
+        ZINC_VEC2I_INIT(MOD(cell_pos->x, CHUNK_DIM),
+                        MOD(cell_pos->y, CHUNK_DIM));
 
-    const Vec2i chunk_pos = ZINC_VEC2I_INIT(cell_pos->x / CHUNK_DIM, 
-                                            cell_pos->y / CHUNK_DIM);
+    Chunk *chunk = world_get_chunk_by_cell(cell_pos);
+    if (chunk == NULL)
+        return false;
+
+    chunk_set_cell(chunk, &cell_pos_in_chunk, cell);
+
+    Vec2i chunk_pos;
+    world_cell_to_chunk_pos(cell_pos, &chunk_pos);
 
     if (cell_pos_in_chunk.x < UPDATE_ZONE_OFFSET) {
         world_update_neighboring_chunk(&chunk_pos, 
@@ -95,75 +126,73 @@ void world_set_cell(const Vec2i *cell_pos, const Cell *cell)
                                        &ZINC_VEC2I(0, 1));
     }
 
-    Chunk *chunk = world_get_chunk_by_cell(cell_pos);
-    chunk_set_cell(chunk, &cell_pos_in_chunk, cell);
-}
-
-inline bool world_in_bounds(const Vec2i *cell_pos)
-{
-    return cell_pos->x >= 0 && cell_pos->x < world.width && 
-        cell_pos->y >= 0 && cell_pos->y < world.height;
-}
-
-inline bool world_cell_in_bounds(const Vec2i *cell_pos)
-{
-    return cell_pos->x >= 0 && cell_pos->x < world.width * CHUNK_DIM && 
-        cell_pos->y >= 0 && cell_pos->y < world.height * CHUNK_DIM;
+    return true;
 }
 
 void world_update()
 {
+    Vec2i min = ZINC_VEC2I_INIT(0, camera.half_width * 2 - 1);
+    Vec2i max = ZINC_VEC2I_INIT(camera.half_width * 2 - 1, 0);
+    camera_screen_to_global_pos(&min, &min);
+    camera_screen_to_global_pos(&max, &max);
+    world_cell_to_chunk_pos(&min, &min);
+    world_cell_to_chunk_pos(&max, &max);
+
     // Collecting moves from chunks
-    for (i32 chunk_y = 0; chunk_y < world.height; chunk_y++) {
-        for (i32 chunk_x = 0; chunk_x < world.width; chunk_x++) {
+    for (i32 chunk_x = min.x; chunk_x <= max.x; chunk_x++) {
+        for (i32 chunk_y = min.y; chunk_y <= max.y; chunk_y++) {
             Vec2i chunk_pos = ZINC_VEC2I_INIT(chunk_x, chunk_y);
-            chunk_collect_moves(world_get_chunk(&chunk_pos));
+            Chunk *c = world_get_chunk(&chunk_pos);
+            if (c == NULL)
+                continue;
+            chunk_collect_moves(c);
         }
     }
 
     // Executing the collected moves 
-    ml_sort(world.ml);
+    ml_sort();
 
     u32 group_size = 1;
-    for (u32 i = 0; i < world.ml->size; i++) {
-        if (i + 1 < world.ml->size && 
-            !move_cmp(ml_get(world.ml, i), ml_get(world.ml, i + 1))) {
+    for (u32 i = 0; i < ml.size; i++) {
+        if (i + 1 < ml.size && 
+            !move_cmp(ml_get(i), ml_get(i + 1))) {
             group_size++;
             continue;
         }
 
         u32 random_number = rand() % group_size;
-        Move *move_to_execute = ml_get(world.ml, i - random_number); 
+        Move *move_to_execute = ml_get(i - random_number); 
         world_delete_cell(&move_to_execute->src);
         world_set_cell(&move_to_execute->dest, &move_to_execute->cell);
 
         group_size = 1;
     }
 
-    ml_clear(world.ml);
+    ml_clear();
 }
 
-void world_render(u32 *pixels)
+void world_render()
 {
-    for (i32 y = 0; y < world.height*CHUNK_DIM; y++) {
-        for (i32 x = 0; x < world.width*CHUNK_DIM; x++) {
-            Vec2i cell_pos = ZINC_VEC2I_INIT(x, y);
-            Cell *curr = world_get_cell(&cell_pos);
-            switch (curr->id) {
-            case ID_EMPTY:
-                pixels[y*640 + x] = SDL_MapRGB(format, 0, 0, 0);
-                break;
+    Vec2i min = ZINC_VEC2I_INIT(0, camera.half_width * 2 - 1);
+    Vec2i max = ZINC_VEC2I_INIT(camera.half_width * 2 - 1, 0);
+                                
+    camera_screen_to_global_pos(&min, &min);
+    camera_screen_to_global_pos(&max, &max);
+    world_cell_to_chunk_pos(&min, &min);
+    world_cell_to_chunk_pos(&max, &max);
 
-            case ID_SAND:
-                pixels[y*640 + x] = SDL_MapRGB(format, 236, 204, 162);
-                break;
-
-            }
-
+    for (i32 chunk_x = min.x; chunk_x <= max.x; chunk_x++) {
+        for (i32 chunk_y = min.y; chunk_y <= max.y; chunk_y++) {
+            Vec2i chunk_pos = ZINC_VEC2I_INIT(chunk_x, chunk_y);
+            Chunk *chunk = world_get_chunk(&chunk_pos);
+            if (chunk == NULL)
+                continue;
+            chunk_render(chunk, renderer);
         }
     }
 }
 
+/*
 void world_render_debug()
 {
     for(i32 chunk_y = 0; chunk_y < world.height; chunk_y++){
@@ -192,3 +221,4 @@ void world_render_debug()
         }
     }
 }
+*/

@@ -10,5 +10,8 @@
 
 #define MAX(_a, _b) ((_a) > (_b) ? (_a) : (_b))
 #define MIN(_a, _b) ((_a) < (_b) ? (_a) : (_b))
+#define MOD(_a, _mod) ((((_a) % (_mod)) + (_mod)) % (_mod))
+
+u64 vec2i_hash(const Vec2i *vec);
 
 #endif

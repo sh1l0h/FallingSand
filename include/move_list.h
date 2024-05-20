@@ -18,15 +18,17 @@ typedef struct MoveList {
 	u32 size;
 } MoveList;
 
-MoveList *ml_create();
-void ml_free(MoveList *ml);
+extern MoveList ml;
 
-void ml_clear(MoveList *ml);
+void ml_init();
+void ml_deinit();
 
-void ml_add(MoveList *ml, const Vec2i *src, const Vec2i *dest, const Cell *cell);
-Move *ml_get(const MoveList *ml, const u32 index);
+void ml_clear();
+
+void ml_add(const Vec2i *src, const Vec2i *dest, const Cell *cell);
+Move *ml_get(const u32 index);
 
 i32 move_cmp(const Move *a, const Move *b);
-void ml_sort(MoveList *ml);
+void ml_sort();
 
 #endif

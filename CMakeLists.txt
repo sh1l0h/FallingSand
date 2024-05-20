@@ -17,6 +17,8 @@ add_executable(${PROJECT_NAME}
     src/cell.c
     src/move_list.c
     src/world.c
+    src/camera.c
+    src/utils.c
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

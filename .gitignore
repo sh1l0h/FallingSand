@@ -3,3 +3,7 @@
 
 # Build artifacts
 build/
+
+# Vim files
+*.swp
+*.swo

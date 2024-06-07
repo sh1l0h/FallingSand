@@ -18,7 +18,7 @@ typedef struct MoveList {
 	u32 size;
 } MoveList;
 
-extern MoveList ml;
+extern MoveList *ml;
 
 void ml_init();
 void ml_deinit();

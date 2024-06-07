@@ -156,7 +156,7 @@ next_cell:;
     chunk->max_update = ZINC_VEC2I(-1, -1);
 }
 
-void chunk_render(Chunk *chunk, SDL_Renderer *renderer)
+void chunk_render(Chunk *chunk)
 {
     Vec2i chunk_pos_in_cells;
     zinc_vec2i_scale(&chunk->position, CHUNK_DIM, &chunk_pos_in_cells);
@@ -170,10 +170,10 @@ void chunk_render(Chunk *chunk, SDL_Renderer *renderer)
             zinc_vec2i_add(&cell_pos, &chunk_pos_in_cells, &cell_pos);
             camera_global_to_screen_pos(&cell_pos, &cell_pos);
             const SDL_Rect rect = {
-                .x = cell_pos.x - camera.scale / 2,
-                .y = cell_pos.y - camera.scale / 2,
-                .w = camera.scale,
-                .h = camera.scale
+                .x = cell_pos.x - camera->scale / 2,
+                .y = cell_pos.y - camera->scale / 2,
+                .w = camera->scale,
+                .h = camera->scale
             };
 
             switch (curr->id) {

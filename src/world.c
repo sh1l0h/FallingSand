@@ -2,28 +2,30 @@
 #include "../include/camera.h"
 #include <SDL2/SDL.h>
 
-World world = { 
-    .buckets = {NULL},
-    .loaded_chunks = 0
-};
+World *world;
 
 extern SDL_PixelFormat *format;
 extern SDL_Renderer *renderer;
 
+void world_init() 
+{
+    world = calloc(1, sizeof *world);
+}
+
 void world_add_chunk(const Vec2i *chunk_pos)
 {
     u64 index = vec2i_hash(chunk_pos) & (CHUNK_BUCKETS_SIZE - 1);
-    Chunk *curr = world.buckets[index];
+    Chunk *curr = world->buckets[index];
     Chunk *new = chunk_create(chunk_pos);
     new->next = curr;
-    world.buckets[index] = new;
+    world->buckets[index] = new;
 }
 
 inline Chunk *world_get_chunk(const Vec2i *chunk_pos)
 {
     u64 index = vec2i_hash(chunk_pos) & (CHUNK_BUCKETS_SIZE - 1);
 
-    Chunk *curr = world.buckets[index];
+    Chunk *curr = world->buckets[index];
     while (curr != NULL) {
         if (curr->position.x == chunk_pos->x && 
             curr->position.y == chunk_pos->y)
@@ -131,8 +133,8 @@ bool world_set_cell(const Vec2i *cell_pos, const Cell *cell)
 
 void world_update()
 {
-    Vec2i min = ZINC_VEC2I_INIT(0, camera.half_width * 2 - 1);
-    Vec2i max = ZINC_VEC2I_INIT(camera.half_width * 2 - 1, 0);
+    Vec2i min = ZINC_VEC2I_INIT(0, camera->half_width * 2 - 1);
+    Vec2i max = ZINC_VEC2I_INIT(camera->half_width * 2 - 1, 0);
     camera_screen_to_global_pos(&min, &min);
     camera_screen_to_global_pos(&max, &max);
     world_cell_to_chunk_pos(&min, &min);
@@ -153,8 +155,8 @@ void world_update()
     ml_sort();
 
     u32 group_size = 1;
-    for (u32 i = 0; i < ml.size; i++) {
-        if (i + 1 < ml.size && 
+    for (u32 i = 0; i < ml->size; i++) {
+        if (i + 1 < ml->size && 
             !move_cmp(ml_get(i), ml_get(i + 1))) {
             group_size++;
             continue;
@@ -173,8 +175,8 @@ void world_update()
 
 void world_render()
 {
-    Vec2i min = ZINC_VEC2I_INIT(0, camera.half_width * 2 - 1);
-    Vec2i max = ZINC_VEC2I_INIT(camera.half_width * 2 - 1, 0);
+    Vec2i min = ZINC_VEC2I_INIT(0, camera->half_width * 2 - 1);
+    Vec2i max = ZINC_VEC2I_INIT(camera->half_width * 2 - 1, 0);
                                 
     camera_screen_to_global_pos(&min, &min);
     camera_screen_to_global_pos(&max, &max);
@@ -187,7 +189,7 @@ void world_render()
             Chunk *chunk = world_get_chunk(&chunk_pos);
             if (chunk == NULL)
                 continue;
-            chunk_render(chunk, renderer);
+            chunk_render(chunk);
         }
     }
 }

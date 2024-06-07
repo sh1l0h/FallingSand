@@ -12,8 +12,9 @@ typedef struct World{
     u64 loaded_chunks;
 } World;
 
-extern World world;
+extern World *world;
 
+void world_init();
 void world_add_chunk(const Vec2i *chunk_pos);
 
 void world_cell_to_chunk_pos(const Vec2i *cell_pos, Vec2i *chunk_pos);

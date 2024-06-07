@@ -2,12 +2,12 @@
 #include "../include/utils.h"
 #include "../include/world.h"
 #include "../include/camera.h"
+#include "../include/particle.h"
 
-#define WINDOW_WIDTH 640
-#define WINDOW_HEIGHT 640
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGHT 800
 
 SDL_Window *window = NULL;
-SDL_Renderer *renderer = NULL;
 
 SDL_PixelFormat *format = NULL;
 
@@ -49,12 +49,17 @@ int main()
 		return 1;
 	}
 
+    world_init();
     ml_init();
-
     camera_init(&ZINC_VEC2I(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2), 
-                3, 
+                1, 
                 WINDOW_WIDTH / 2, 
                 WINDOW_HEIGHT / 2);
+    particle_init();
+
+    particle_add(&(Cell) {ID_SAND, 0.0f}, 
+                 &ZINC_VEC2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2), 
+                 &ZINC_VEC2(1.0, -2.0));
 
     for (i32 i = 0; i < WINDOW_WIDTH / CHUNK_DIM; i++) {
         for (i32 j = 0; j < WINDOW_WIDTH / CHUNK_DIM; j++) {
@@ -71,12 +76,16 @@ int main()
     i32 mouse_x = 0;
     i32 mouse_y = 0;
 
+    u32 second_count = 0;
+    u32 frame_count = 0;
+
     u8 should_continue = 1;
     while (should_continue) {
         u32 curr_time = SDL_GetTicks();
         u32 delta = curr_time - last_time;
         last_time = curr_time;
         time_to_process += delta;
+        second_count += delta;
 
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
@@ -109,15 +118,30 @@ int main()
 
                 }
                 break;
+
+            case SDL_MOUSEWHEEL:
+                {
+                    SDL_MouseWheelEvent wheel = event.wheel;
+                    if (wheel.y + camera->scale > 0)
+                        camera->scale += wheel.y;
+                }
+                break;
             }
         }
 
-        printf("fps = %dms\n", delta);
         while (time_to_process >= ms_per_update) {
             // Fixed update
-            world_update(ms_per_update);
+            world_update();
+            particle_update();
 
             time_to_process -= ms_per_update;
+        }
+
+        frame_count += 1;
+        if (second_count >= 1000) {
+            printf("FPS: %d\n", frame_count * 1000 / second_count);
+            frame_count = 0;
+            second_count -= 1000;
         }
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -125,6 +149,7 @@ int main()
 
         // Render
         world_render();
+        particle_render();
 
         SDL_RenderPresent(renderer);
         SDL_Delay(1);

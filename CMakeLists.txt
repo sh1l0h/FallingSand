@@ -19,6 +19,7 @@ add_executable(${PROJECT_NAME}
     src/world.c
     src/camera.c
     src/utils.c
+    src/particle.c
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

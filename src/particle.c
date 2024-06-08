@@ -96,54 +96,56 @@ void particle_update()
         Particle *curr = particles + i;
         curr->vel.y += PARTICLE_GRAVITY * FIXED_DELTA;
 
-        Vec2 dis;
-        zinc_vec2_scale(&curr->vel, FIXED_DELTA, &dis);
+        f32 t = FIXED_DELTA;
 
-        Vec2 dir;
-        zinc_vec2_copy(&dis, &dir);
-        zinc_vec2_normalize(&dir);
+        while (t > 0) {
+            Vec2 dis;
+            zinc_vec2_scale(&curr->vel, t, &dis);
 
-        f32 hit_dis;
-        Vec2 hit_norm;
-        bool hit = particle_check_collision(&curr->pos, 
-                                            &dir,
-                                            zinc_vec2_len(&dis),
-                                            &hit_dis,
-                                            &hit_norm);
-        if (!hit) {
-            zinc_vec2_add(&curr->pos, &dis, &curr->pos);
-            continue;
-        }
+            Vec2 dir;
+            zinc_vec2_copy(&dis, &dir);
+            zinc_vec2_normalize(&dir);
 
-        zinc_vec2_scale(&dir, hit_dis, &dis);
-        zinc_vec2_add(&curr->pos, &dis, &curr->pos);
-
-        f32 t = FIXED_DELTA - hit_dis / zinc_vec2_len(&curr->vel);
-
-        zinc_vec2_scale(&hit_norm, 
-                        2 * zinc_vec2_dot(&curr->vel, &hit_norm), 
-                        &hit_norm);
-        zinc_vec2_sub(&curr->vel, &hit_norm, &curr->vel); 
-        zinc_vec2_scale(&curr->vel, 0.5f, &curr->vel);
-
-        if (zinc_vec2_len(&curr->vel) < PARTICLE_MIN_SPEED) {
-            Vec2i cell_pos = ZINC_VEC2I_INIT(floor(curr->pos.x), 
-                                             floor(curr->pos.y));
-
-            world_set_cell(&cell_pos, &curr->cell);
-
-            if (size > 1) {
-                cell_copy(&particles[size - 1].cell, &curr->cell);
-                zinc_vec2_copy(&particles[size - 1].pos, &curr->pos);
-                zinc_vec2_copy(&particles[size - 1].vel, &curr->vel);
-                i -= 1;
+            f32 hit_dis;
+            Vec2 hit_norm;
+            bool hit = particle_check_collision(&curr->pos, 
+                                                &dir,
+                                                zinc_vec2_len(&dis),
+                                                &hit_dis,
+                                                &hit_norm);
+            if (!hit) {
+                zinc_vec2_add(&curr->pos, &dis, &curr->pos);
+                break;
             }
-            size -= 1;
-            continue;
-        }
 
-        zinc_vec2_scale(&curr->vel, t, &dis);
-        zinc_vec2_add(&curr->pos, &dis, &curr->pos);
+            zinc_vec2_scale(&dir, hit_dis, &dis);
+            zinc_vec2_add(&curr->pos, &dis, &curr->pos);
+
+            t -= hit_dis / zinc_vec2_len(&curr->vel);
+
+            zinc_vec2_scale(&hit_norm, 
+                            2 * zinc_vec2_dot(&curr->vel, &hit_norm), 
+                            &hit_norm);
+            zinc_vec2_sub(&curr->vel, &hit_norm, &curr->vel); 
+            zinc_vec2_scale(&curr->vel, 0.5f, &curr->vel);
+
+            if (zinc_vec2_len(&curr->vel) < PARTICLE_MIN_SPEED) {
+                Vec2i cell_pos = ZINC_VEC2I_INIT(floor(curr->pos.x), 
+                                                 floor(curr->pos.y));
+
+                world_set_cell(&cell_pos, &curr->cell);
+
+                if (size > 1) {
+                    cell_copy(&particles[size - 1].cell, &curr->cell);
+                    zinc_vec2_copy(&particles[size - 1].pos, &curr->pos);
+                    zinc_vec2_copy(&particles[size - 1].vel, &curr->vel);
+                    i -= 1;
+                }
+                size -= 1;
+                break;
+            }
+
+        }
     }
 }
 

@@ -57,7 +57,7 @@ static bool particle_check_collision(const Vec2 *origin,
         mag.y = (origin->y - cell_pos.y) * scale.y;
         scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
     }
-    else {
+    else if (dir->y > 0){
         step.y = 1;
         mag.y = (cell_pos.y - origin->y + 1) * scale.y;
         scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
@@ -94,7 +94,7 @@ void particle_update()
 {
     for (size_t i = 0; i < size; i++) {
         Particle *curr = particles + i;
-        curr->vel.y += PARTICLE_GRAVITY * FIXED_DELTA;
+        curr->vel.y += GRAVITY * FIXED_DELTA;
 
         f32 t = FIXED_DELTA;
 

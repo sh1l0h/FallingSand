@@ -3,6 +3,7 @@
 #include "../include/world.h"
 #include "../include/camera.h"
 #include "../include/particle.h"
+#include "../include/player.h"
 
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 800
@@ -56,7 +57,7 @@ int main()
                 WINDOW_WIDTH / 2, 
                 WINDOW_HEIGHT / 2);
     particle_init();
-
+    player_init(&ZINC_VEC2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2));
     particle_add(&(Cell) {ID_SAND, 0.0f}, 
                  &ZINC_VEC2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2), 
                  &ZINC_VEC2(1.0, -2.0));
@@ -96,11 +97,12 @@ int main()
 
             case SDL_MOUSEMOTION:
                 {
-                    SDL_MouseMotionEvent motion = event.motion;
-                    mouse_x = motion.x;
-                    mouse_y = motion.y;
-                    break;
+                    SDL_MouseMotionEvent *motion = &event.motion;
+                    mouse_x = motion->x;
+                    mouse_y = motion->y;
                 }
+                break;
+
             case SDL_MOUSEBUTTONDOWN:
                 {
                     for (int j = MAX(mouse_y - 10, 0); 
@@ -121,9 +123,25 @@ int main()
 
             case SDL_MOUSEWHEEL:
                 {
-                    SDL_MouseWheelEvent wheel = event.wheel;
-                    if (wheel.y + camera->scale > 0)
-                        camera->scale += wheel.y;
+                    SDL_MouseWheelEvent *wheel = &event.wheel;
+                    if (wheel->y + camera->scale > 0)
+                        camera->scale += wheel->y;
+                }
+                break;
+            case SDL_KEYDOWN:
+                {
+                    SDL_KeyboardEvent *key = &event.key;
+                    if (key->keysym.scancode == SDL_SCANCODE_A) {
+                        player->acc.x = - 12.0f;
+                    }
+                }
+                break;
+            case SDL_KEYUP:
+                {
+                    SDL_KeyboardEvent *key = &event.key;
+                    if (key->keysym.scancode == SDL_SCANCODE_A) {
+                        player->acc.x = 0;
+                    }
                 }
                 break;
             }
@@ -132,6 +150,7 @@ int main()
         while (time_to_process >= ms_per_update) {
             // Fixed update
             world_update();
+            player_update();
             particle_update();
 
             time_to_process -= ms_per_update;
@@ -150,6 +169,7 @@ int main()
         // Render
         world_render();
         particle_render();
+        player_render();
 
         SDL_RenderPresent(renderer);
         SDL_Delay(1);

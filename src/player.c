@@ -56,15 +56,15 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f
 
                 Vec2i cell_pos = 
                     ZINC_VEC2I_INIT(center.x + step.x * PLAYER_WIDTH / 2, 
-                                    center.y + PLAYER_HEIGHT / 2 - i);
+                                    center.y - PLAYER_HEIGHT / 2 + i);
 
                 Cell *c = world_get_cell(&cell_pos);
                 if (c != NULL && IS_EMPTY(c))
                     continue;
 
-                if (PLAYER_HEIGHT - i <= PLAYER_VERTICAL_LEAP) {
-                    center.y += PLAYER_HEIGHT - i;
-                    *vertical_offset += PLAYER_HEIGHT - i;
+                if (i <= PLAYER_VERTICAL_LEAP) {
+                    center.y += i;
+                    *vertical_offset += i;
                     break;
                 }
 
@@ -102,11 +102,6 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f
 
 void player_update()
 {
-    zinc_vec2_print(&player->pos);
-    zinc_vec2_print(&player->vel);
-    zinc_vec2_print(&player->acc);
-    printf("\n");
-
     player->vel.x += (player->acc.x - 0.4f * player->vel.x) * FIXED_DELTA;
     player->vel.y += player->acc.y * FIXED_DELTA;
 

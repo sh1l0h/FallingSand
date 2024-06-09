@@ -132,14 +132,17 @@ int main()
                 {
                     SDL_KeyboardEvent *key = &event.key;
                     if (key->keysym.scancode == SDL_SCANCODE_A) {
-                        player->acc.x = - 12.0f;
+                        player->acc.x = -12.0f;
+                    }
+                    else if (key->keysym.scancode == SDL_SCANCODE_D) {
+                        player->acc.x = 12.0f;
                     }
                 }
                 break;
             case SDL_KEYUP:
                 {
                     SDL_KeyboardEvent *key = &event.key;
-                    if (key->keysym.scancode == SDL_SCANCODE_A) {
+                    if (key->keysym.scancode == SDL_SCANCODE_A || key->keysym.scancode == SDL_SCANCODE_D) {
                         player->acc.x = 0;
                     }
                 }
@@ -155,6 +158,9 @@ int main()
 
             time_to_process -= ms_per_update;
         }
+
+        camera->position.x = player->pos.x;
+        camera->position.y = player->pos.y;
 
         frame_count += 1;
         if (second_count >= 1000) {

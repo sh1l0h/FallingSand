@@ -63,18 +63,17 @@ static bool particle_check_collision(const Vec2 *origin,
         scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
     }
 
-    f32 dis = 0; 
-    while (dis <= t) {
+    while (mag.x <= t && mag.y <= t) {
         if (mag.x < mag.y) {
             cell_pos.x += step.x;
-            dis = mag.x;
+            *hit_dis = mag.x;
             mag.x += scale.x;
             hit_norm->x = -step.x;
             hit_norm->y = 0;
         }
         else {
             cell_pos.y += step.y;
-            dis = mag.y;
+            *hit_dis = mag.y;
             mag.y += scale.y; 
             hit_norm->y = -step.y;
             hit_norm->x = 0;
@@ -82,7 +81,6 @@ static bool particle_check_collision(const Vec2 *origin,
 
         Cell *c = world_get_cell(&cell_pos);
         if (c == NULL || !IS_EMPTY(c)) {
-            *hit_dis = dis;
             return true;
         }
     }

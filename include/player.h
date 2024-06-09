@@ -7,10 +7,11 @@
 #define PLAYER_WIDTH 7
 
 #define PLAYER_DRAG 17.0f
-#define PLAYER_VERTICAL_LEAP 4
+#define PLAYER_STEP_HEIGHT 4
 
 typedef struct Player {
     Vec2 pos, vel, acc;
+    f32 step_time;
 } Player;
 
 extern Player *player;

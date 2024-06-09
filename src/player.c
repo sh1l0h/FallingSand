@@ -11,7 +11,7 @@ void player_init(const Vec2 *pos)
     player->acc.y = GRAVITY;
 }
 
-static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f32 *hit_dis)
+static bool player_check_collision(f32 t, Vec2 *new_vel, Vec2i *offset, f32 *hit_dis)
 {
     Vec2i center = ZINC_VEC2I_INIT(floor(player->pos.x), floor(player->pos.y));
 
@@ -45,11 +45,10 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f
                        (player->vel.x / player->vel.y));
     }
 
-    f32 len = 0.0;
-    while (len < t) {
+    while (mag.x <= t || mag.y <= t) {
         if (mag.x < mag.y) {
             center.x += step.x;
-            len = mag.x;
+            *hit_dis = mag.x;
             mag.x += scale.x;
 
             for (i32 i = PLAYER_HEIGHT - 1; i >= 0; i--) {
@@ -62,15 +61,16 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f
                 if (c != NULL && IS_EMPTY(c))
                     continue;
 
-                if (i <= PLAYER_VERTICAL_LEAP) {
-                    center.y += i;
-                    *vertical_offset += i;
-                    break;
+                if (i <= PLAYER_STEP_HEIGHT) {
+                    offset->y += i + 1;
+                    offset->x += step.x;
+                    return true;
                 }
 
+                player->step_time = 0.0f;
                 new_vel->x = 0.0;
                 new_vel->y = player->vel.y;
-                *hit_dis = len;
+                player->step_time = 0.0f;
                 return true;
             }
 
@@ -78,7 +78,7 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f
         }
 
         center.y += step.y;
-        len = mag.y;
+        *hit_dis = mag.y;
         mag.y += scale.y;
 
         for (i32 i = center.x - PLAYER_WIDTH / 2; 
@@ -92,11 +92,11 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, i32 *vertical_offset, f
 
             new_vel->y = 0.0;
             new_vel->x = player->vel.x;
-            *hit_dis = len;
             return true;
         }
     }
 
+    player->step_time = 0.0f;
     return false;
 }
 
@@ -116,22 +116,36 @@ void player_update()
         zinc_vec2_scale(&player->vel, dt, &dis);
 
         f32 hit_dis;
-        i32 vertical_offset = 0;
+        Vec2i offset = ZINC_VEC2I_ZERO_INIT;
         Vec2 new_vel;
-        bool hit = player_check_collision(zinc_vec2_len(&dis), &new_vel, &vertical_offset, &hit_dis);
-        player->pos.y += vertical_offset;
+        bool hit = player_check_collision(zinc_vec2_len(&dis), &new_vel, &offset, &hit_dis);
 
         if (!hit) {
             zinc_vec2_add(&dis, &player->pos, &player->pos);
             break;
         }
 
+        f32 speed = zinc_vec2_len(&player->vel);
+        dt -= hit_dis / speed;
+
         zinc_vec2_normalize(&dis);
         zinc_vec2_scale(&dis, hit_dis, &dis);
         zinc_vec2_add(&player->pos, &dis, &player->pos);
 
-        dt -= hit_dis / zinc_vec2_len(&player->vel);
         zinc_vec2_copy(&new_vel, &player->vel);
+
+        f32 step_time = zinc_vec2i_len(&offset) / speed;
+        if (offset.x != 0) {
+            if (dt + player->step_time < step_time) {
+                player->step_time += dt;
+                break;
+            }
+
+            dt += player->step_time - step_time;
+            player->step_time = 0.0f;
+            player->pos.y += offset.y;
+            player->pos.x += offset.x;
+        }
     }
 }
 

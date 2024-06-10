@@ -11,7 +11,7 @@ void player_init(const Vec2 *pos)
     player->acc.y = GRAVITY;
 }
 
-static bool player_check_collision(f32 t, Vec2 *new_vel, Vec2i *offset, f32 *hit_dis)
+static bool player_check_collision(f32 t, Vec2i *offset, f32 *hit_dis)
 {
     Vec2i center = ZINC_VEC2I_INIT(floor(player->pos.x), floor(player->pos.y));
 
@@ -64,13 +64,12 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, Vec2i *offset, f32 *hit
                 if (i <= PLAYER_STEP_HEIGHT) {
                     offset->y += i + 1;
                     offset->x += step.x;
+                    player->vel.y = 0.0;
                     return true;
                 }
 
                 player->step_time = 0.0f;
-                new_vel->x = 0.0;
-                new_vel->y = player->vel.y;
-                player->step_time = 0.0f;
+                player->vel.x = 0.0;
                 return true;
             }
 
@@ -90,12 +89,12 @@ static bool player_check_collision(f32 t, Vec2 *new_vel, Vec2i *offset, f32 *hit
             if (c != NULL && IS_EMPTY(c))
                 continue;
 
-            new_vel->y = 0.0;
-            new_vel->x = player->vel.x;
+            player->vel.y = 0.0;
             return true;
         }
     }
 
+    *hit_dis = t;
     player->step_time = 0.0f;
     return false;
 }
@@ -112,27 +111,22 @@ void player_update()
             break;
         }
 
-        Vec2 dis;
-        zinc_vec2_scale(&player->vel, dt, &dis);
+        f32 speed = zinc_vec2_len(&player->vel);
+        Vec2 dir;
+        zinc_vec2_copy(&player->vel, &dir);
+        zinc_vec2_normalize(&dir);
 
         f32 hit_dis;
         Vec2i offset = ZINC_VEC2I_ZERO_INIT;
-        Vec2 new_vel;
-        bool hit = player_check_collision(zinc_vec2_len(&dis), &new_vel, &offset, &hit_dis);
+        bool hit = player_check_collision(speed * dt, &offset, &hit_dis);
 
-        if (!hit) {
-            zinc_vec2_add(&dis, &player->pos, &player->pos);
-            break;
-        }
-
-        f32 speed = zinc_vec2_len(&player->vel);
         dt -= hit_dis / speed;
 
-        zinc_vec2_normalize(&dis);
-        zinc_vec2_scale(&dis, hit_dis, &dis);
-        zinc_vec2_add(&player->pos, &dis, &player->pos);
+        zinc_vec2_scale(&dir, hit_dis, &dir);
+        zinc_vec2_add(&player->pos, &dir, &player->pos);
 
-        zinc_vec2_copy(&new_vel, &player->vel);
+        if (!hit) 
+            break;
 
         f32 step_time = zinc_vec2i_len(&offset) / speed;
         if (offset.x != 0) {

@@ -132,10 +132,10 @@ int main()
                 {
                     SDL_KeyboardEvent *key = &event.key;
                     if (key->keysym.scancode == SDL_SCANCODE_A) {
-                        player->acc.x = -12.0f;
+                        player->acc.x = -100.0f;
                     }
                     else if (key->keysym.scancode == SDL_SCANCODE_D) {
-                        player->acc.x = 12.0f;
+                        player->acc.x = 100.0f;
                     }
                 }
                 break;

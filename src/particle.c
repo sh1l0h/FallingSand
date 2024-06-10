@@ -63,7 +63,7 @@ static bool particle_check_collision(const Vec2 *origin,
         scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
     }
 
-    while (mag.x <= t && mag.y <= t) {
+    while (mag.x <= t || mag.y <= t) {
         if (mag.x < mag.y) {
             cell_pos.x += step.x;
             *hit_dis = mag.x;
@@ -80,11 +80,11 @@ static bool particle_check_collision(const Vec2 *origin,
         }
 
         Cell *c = world_get_cell(&cell_pos);
-        if (c == NULL || !IS_EMPTY(c)) {
+        if (c == NULL || !IS_EMPTY(c))
             return true;
-        }
     }
 
+    *hit_dis = t;
     return false;
 }
 

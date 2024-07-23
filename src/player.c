@@ -1,6 +1,7 @@
 #include "../include/player.h"
 #include "../include/world.h"
 #include "../include/camera.h"
+#include "../include/particle.h"
 
 Player *player = NULL;
 
@@ -11,141 +12,169 @@ void player_init(const Vec2 *pos)
     player->acc.y = GRAVITY;
 }
 
-static bool player_check_collision(f32 t, Vec2 *new_vel, Vec2i *offset, f32 *hit_dis)
+static bool player_check_horizontal_collision(f32 *offset, f32 *vertical_offset)
 {
-    Vec2i center = ZINC_VEC2I_INIT(floor(player->pos.x), floor(player->pos.y));
-
-    Vec2 scale = ZINC_VEC2_ZERO_INIT;
-    Vec2 mag = ZINC_VEC2_INIT(FLT_MAX, FLT_MAX);
-    Vec2i step = ZINC_VEC2I_ZERO_INIT;
-
-    if (player->vel.x < 0) {
-        step.x = -1;
-        mag.x = (player->pos.x - center.x) * scale.x;
-        scale.x = sqrt(1 + (player->vel.y / player->vel.x) *
-                       (player->vel.y / player->vel.x));
-    }
-    else if (player->vel.x > 0){
-        step.x = 1;
-        mag.x = (center.x - player->pos.x + 1) * scale.x;
-        scale.x = sqrt(1 + (player->vel.y / player->vel.x) *
-                       (player->vel.y / player->vel.x));
-    }
-
-    if (player->vel.y < 0) {
-        step.y = -1;
-        mag.y = (player->pos.y - center.y) * scale.y;
-        scale.y = sqrt(1 + (player->vel.x / player->vel.y) * 
-                       (player->vel.x / player->vel.y));
-    }
-    else if (player->vel.y > 0) {
-        step.y = 1;
-        mag.y = (center.y - player->pos.y + 1) * scale.y;
-        scale.y = sqrt(1 + (player->vel.x / player->vel.y) * 
-                       (player->vel.x / player->vel.y));
-    }
-
-    while (mag.x <= t || mag.y <= t) {
-        if (mag.x < mag.y) {
-            center.x += step.x;
-            *hit_dis = mag.x;
-            mag.x += scale.x;
-
-            for (i32 i = PLAYER_HEIGHT - 1; i >= 0; i--) {
-
-                Vec2i cell_pos = 
-                    ZINC_VEC2I_INIT(center.x + step.x * PLAYER_WIDTH / 2, 
-                                    center.y - PLAYER_HEIGHT / 2 + i);
-
-                Cell *c = world_get_cell(&cell_pos);
+    i32 start_y = floorf(player->pos.y + PLAYER_HEIGHT / 2.0f
+                         - PLAYER_SKIN_WIDTH);
+    i32 end_y = floorf(player->pos.y - PLAYER_HEIGHT / 2.0f
+                       + PLAYER_SKIN_WIDTH);
+    if (*offset < 0.0f) {
+        i32 start_x = floorf(player->pos.x - PLAYER_WIDTH / 2.0f);
+        i32 end_x = floorf(player->pos.x - PLAYER_WIDTH / 2.0f + *offset
+                           + PLAYER_SKIN_WIDTH);
+        for (i32 x = start_x; x >= end_x; x--) {
+            for (i32 y = start_y; y >= end_y; y--) {
+                Vec2i curr_cell = ZINC_VEC2I_INIT(x, y);
+                Cell *c = world_get_cell(&curr_cell);
                 if (c != NULL && IS_EMPTY(c))
                     continue;
 
-                if (i <= PLAYER_STEP_HEIGHT) {
-                    offset->y += i + 1;
-                    offset->x += step.x;
+                f32 diff = player->pos.x;
+                player->pos.x = x + 1.0f + PLAYER_WIDTH / 2.0f;
+                diff = player->pos.x - diff; 
+
+                *offset -= diff;
+                i32 step_height = y - end_y + 1;
+
+                if (step_height <= PLAYER_STEP_HEIGHT) {
+                    *vertical_offset = step_height;
                     return true;
                 }
 
-                player->step_time = 0.0f;
-                new_vel->x = 0.0;
-                new_vel->y = player->vel.y;
-                player->step_time = 0.0f;
-                return true;
+                player->vel.x = 0.0f;
+                return false;
             }
-
-            continue;
         }
+    }
+    else {
+        i32 start_x = floorf(player->pos.x + PLAYER_WIDTH / 2.0f);
+        i32 end_x = floorf(player->pos.x + PLAYER_WIDTH / 2.0f + *offset
+                           - PLAYER_SKIN_WIDTH);
+        for (i32 x = start_x; x <= end_x; x++) {
+            for (i32 y = start_y; y >= end_y; y--) {
+                Vec2i curr_cell = ZINC_VEC2I_INIT(x, y);
+                Cell *c = world_get_cell(&curr_cell);
+                if (c != NULL && IS_EMPTY(c))
+                    continue;
 
-        center.y += step.y;
-        *hit_dis = mag.y;
-        mag.y += scale.y;
+                f32 diff = player->pos.x;
+                player->pos.x = x - PLAYER_WIDTH / 2.0f;
+                diff = player->pos.x - diff; 
 
-        for (i32 i = center.x - PLAYER_WIDTH / 2; 
-             i <= center.x + PLAYER_WIDTH / 2; i++) {
-            Vec2i cell_pos = 
-                ZINC_VEC2I_INIT(i, center.y + step.y * PLAYER_HEIGHT / 2);
+                *offset -= diff;
+                i32 step_height = y - end_y + 1;
+                if (step_height <= PLAYER_STEP_HEIGHT) {
+                    *vertical_offset = step_height;
+                    return true;
+                }
 
-            Cell *c = world_get_cell(&cell_pos);
-            if (c != NULL && IS_EMPTY(c))
-                continue;
-
-            new_vel->y = 0.0;
-            new_vel->x = player->vel.x;
-            return true;
+                player->vel.x = 0.0f;
+                return false;
+            }
         }
     }
 
-    player->step_time = 0.0f;
+    player->pos.x += *offset;
     return false;
+}
+
+static bool player_check_vertical_collision(f32 offset)
+{
+    i32 start_x = floorf(player->pos.x - PLAYER_WIDTH / 2.0f
+                         + PLAYER_SKIN_WIDTH);
+    i32 end_x = floorf(player->pos.x + PLAYER_WIDTH / 2.0f 
+                       - PLAYER_SKIN_WIDTH);
+    if (offset < 0.0f) {
+        i32 start_y = floorf(player->pos.y - PLAYER_HEIGHT / 2.0f);
+        i32 end_y = floorf(player->pos.y - PLAYER_HEIGHT / 2.0f + offset
+                           + PLAYER_SKIN_WIDTH);
+        for (i32 y = start_y; y >= end_y; y--) {
+            for (i32 x = start_x; x <= end_x; x++) {
+                Vec2i curr_cell = ZINC_VEC2I_INIT(x, y);
+                Cell *c = world_get_cell(&curr_cell);
+                if (c != NULL && IS_EMPTY(c))
+                    continue;
+
+                player->pos.y = y + 1.0f + PLAYER_HEIGHT / 2.0f;
+                player->vel.y = 0.0f;
+                player->on_ground = true;
+                return false;
+            }
+        }
+    }
+    else {
+        i32 start_y = floorf(player->pos.y + PLAYER_HEIGHT / 2.0f);
+        i32 end_y = floorf(player->pos.y + PLAYER_HEIGHT / 2.0f + offset
+                           - PLAYER_SKIN_WIDTH);
+        for (i32 y = start_y; y <= end_y; y++) {
+            for (i32 x = start_x; x <= end_x; x++) {
+                Vec2i curr_cell = ZINC_VEC2I_INIT(x, y);
+
+                Cell *c = world_get_cell(&curr_cell);
+                if (c != NULL && IS_EMPTY(c))
+                    continue;
+
+                player->pos.y = y - PLAYER_HEIGHT / 2.0f;
+                player->vel.y = 0.0f;
+                player->on_ground = true;
+                return false;
+            }
+        }
+    }
+
+    player->on_ground = false;
+    player->pos.y += offset;
+    return true;
 }
 
 void player_update()
 {
+    Vec2i border_min;
+    border_min.x = floorf(player->pos.x - PLAYER_WIDTH / 2.0f 
+                          + PLAYER_SKIN_WIDTH);
+    border_min.y = floorf(player->pos.y - PLAYER_HEIGHT / 2.0f
+                          + PLAYER_SKIN_WIDTH);
+
+    Vec2i border_max;
+    border_max.x = floorf(player->pos.x + PLAYER_WIDTH / 2.0f
+                          - PLAYER_SKIN_WIDTH);
+    border_max.y = floorf(player->pos.y + PLAYER_HEIGHT / 2.0f
+                          - PLAYER_SKIN_WIDTH);
+
+    for (i32 y = border_min.y; y <= border_max.y; y++) {
+        for (i32 x = border_min.x; x <= border_max.x; x++) {
+            Vec2i curr_cell = ZINC_VEC2I_INIT(x, y);
+            Cell *c = world_get_cell(&curr_cell);
+            if (c != NULL && IS_EMPTY(c))
+                continue;
+
+            Vec2 particle_pos = ZINC_VEC2_INIT(x + 0.5f, y + 0.5f);
+            Vec2 particle_vel; 
+            zinc_vec2_sub(&particle_pos, &player->pos, &particle_vel);
+            zinc_vec2_scale(&particle_vel, 1.5f, &particle_vel);
+
+            particle_add(c, &particle_pos, &particle_vel);
+            world_delete_cell(&curr_cell);
+        }
+    }
+
     player->vel.x += (player->acc.x - 0.4f * player->vel.x) * FIXED_DELTA;
     player->vel.y += player->acc.y * FIXED_DELTA;
 
-    f32 dt = FIXED_DELTA;
+    f32 speed = zinc_vec2_len(&player->vel);
+    if (speed < PLAYER_MIN_SPEED)
+        return;
 
-    while (dt > 0) {
-        if (zinc_vec2_squared_len(&player->vel) == 0) {
+    if (player->vel.y != 0.0f)
+        player_check_vertical_collision(player->vel.y * FIXED_DELTA);
+
+    f32 offset = player->vel.x * FIXED_DELTA;
+    f32 vertical_offset = 0.0f;
+    while (offset != 0.0f && 
+           player_check_horizontal_collision(&offset, &vertical_offset)) {
+
+        if (!player_check_vertical_collision(vertical_offset))
             break;
-        }
-
-        Vec2 dis;
-        zinc_vec2_scale(&player->vel, dt, &dis);
-
-        f32 hit_dis;
-        Vec2i offset = ZINC_VEC2I_ZERO_INIT;
-        Vec2 new_vel;
-        bool hit = player_check_collision(zinc_vec2_len(&dis), &new_vel, &offset, &hit_dis);
-
-        if (!hit) {
-            zinc_vec2_add(&dis, &player->pos, &player->pos);
-            break;
-        }
-
-        f32 speed = zinc_vec2_len(&player->vel);
-        dt -= hit_dis / speed;
-
-        zinc_vec2_normalize(&dis);
-        zinc_vec2_scale(&dis, hit_dis, &dis);
-        zinc_vec2_add(&player->pos, &dis, &player->pos);
-
-        zinc_vec2_copy(&new_vel, &player->vel);
-
-        f32 step_time = zinc_vec2i_len(&offset) / speed;
-        if (offset.x != 0) {
-            if (dt + player->step_time < step_time) {
-                player->step_time += dt;
-                break;
-            }
-
-            dt += player->step_time - step_time;
-            player->step_time = 0.0f;
-            player->pos.y += offset.y;
-            player->pos.x += offset.x;
-        }
     }
 }
 

@@ -4,7 +4,7 @@
 #include "utils.h"
 #include "cell.h"
 
-#define PARTICLE_MIN_SPEED 1.0
+#define PARTICLE_MIN_SPEED 1.0f
 
 typedef struct Particle {
     Cell cell; 

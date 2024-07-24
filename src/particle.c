@@ -37,31 +37,22 @@ static bool particle_check_collision(const Vec2 *origin,
 {
     Vec2i cell_pos = ZINC_VEC2I_INIT(floor(origin->x), floor(origin->y));
 
-    Vec2 scale = ZINC_VEC2_ZERO_INIT;
+    Vec2 scale;  
+    scale.x = sqrt(1 + (dir->y / dir->x) * (dir->y / dir->x));
+    scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
+
     Vec2 mag = ZINC_VEC2_INIT(FLT_MAX, FLT_MAX);
-    Vec2i step = ZINC_VEC2I_ZERO_INIT;
+    Vec2i step = ZINC_VEC2I_INIT(SIGN(dir->x), SIGN(dir->y));
 
-    if (dir->x < 0) {
-        step.x = -1;
+    if (step.x < 0)
         mag.x = (origin->x - cell_pos.x) * scale.x;
-        scale.x = sqrt(1 + (dir->y / dir->x) * (dir->y / dir->x));
-    }
-    else if (dir->x > 0){
-        step.x = 1;
+    else
         mag.x = (cell_pos.x - origin->x + 1) * scale.x;
-        scale.x = sqrt(1 + (dir->y / dir->x) * (dir->y / dir->x));
-    }
 
-    if (dir->y < 0) {
-        step.y = -1;
+    if (step.y < 0) 
         mag.y = (origin->y - cell_pos.y) * scale.y;
-        scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
-    }
-    else if (dir->y > 0){
-        step.y = 1;
+    else
         mag.y = (cell_pos.y - origin->y + 1) * scale.y;
-        scale.y = sqrt(1 + (dir->x / dir->y) * (dir->x / dir->y));
-    }
 
     while (mag.x <= t || mag.y <= t) {
         if (mag.x < mag.y) {
@@ -97,39 +88,44 @@ void particle_update()
         f32 t = FIXED_DELTA;
 
         while (t > 0) {
-            Vec2 dis;
-            zinc_vec2_scale(&curr->vel, t, &dis);
-
             Vec2 dir;
-            zinc_vec2_copy(&dis, &dir);
+            zinc_vec2_copy(&curr->vel, &dir);
             zinc_vec2_normalize(&dir);
+
+            f32 speed = zinc_vec2_len(&curr->vel);
 
             f32 hit_dis;
             Vec2 hit_norm;
             bool hit = particle_check_collision(&curr->pos, 
                                                 &dir,
-                                                zinc_vec2_len(&dis),
+                                                speed * t,
                                                 &hit_dis,
                                                 &hit_norm);
-            if (!hit) {
-                zinc_vec2_add(&curr->pos, &dis, &curr->pos);
+
+            zinc_vec2_scale(&dir, hit_dis, &dir);
+            zinc_vec2_add(&curr->pos, &dir, &curr->pos);
+
+            if (!hit) 
                 break;
-            }
 
-            zinc_vec2_scale(&dir, hit_dis, &dis);
-            zinc_vec2_add(&curr->pos, &dis, &curr->pos);
+            t -= hit_dis / speed;
 
-            t -= hit_dis / zinc_vec2_len(&curr->vel);
-
+            Vec2 tmp;
             zinc_vec2_scale(&hit_norm, 
                             2 * zinc_vec2_dot(&curr->vel, &hit_norm), 
-                            &hit_norm);
-            zinc_vec2_sub(&curr->vel, &hit_norm, &curr->vel); 
+                            &tmp);
+            zinc_vec2_sub(&curr->vel, &tmp, &curr->vel); 
             zinc_vec2_scale(&curr->vel, 0.5f, &curr->vel);
 
             if (zinc_vec2_len(&curr->vel) < PARTICLE_MIN_SPEED) {
                 Vec2i cell_pos = ZINC_VEC2I_INIT(floor(curr->pos.x), 
                                                  floor(curr->pos.y));
+
+                if (hit_norm.x < 0)
+                    cell_pos.x -= 1;
+
+                if (hit_norm.y < 0)
+                    cell_pos.y -= 1;
 
                 world_set_cell(&cell_pos, &curr->cell);
 
@@ -139,11 +135,12 @@ void particle_update()
                     zinc_vec2_copy(&particles[size - 1].vel, &curr->vel);
                     i -= 1;
                 }
+
                 size -= 1;
                 break;
             }
-
         }
+
     }
 }
 
